@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Circle Packing</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="controls-sidebar">
+            <div class="sliders-container">
+                <div class="controls-info">Press S to take screenshot</div>
+                
+                <div class="controls-section">
+                    <div class="section-header">
+                        <h3>Text Input</h3>
+                        <span class="toggle-icon">▼</span>
+                    </div>
+                    <div class="section-content">
+                        <div class="text-input-group">
+                            <textarea id="outline-text" placeholder="Type your text here...">Poyo's Particle Party</textarea>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="controls-section">
+                    <div class="section-header">
+                        <h3>Basic Controls</h3>
+                        <span class="toggle-icon open">▼</span>
+                    </div>
+                    <div class="section-content open">
+                        <div class="slider-group">
+                            <label for="density-slider">Circle Density</label>
+                            <input type="range" id="density-slider" min="10" max="100" value="50">
+                        </div>
+                        <div class="slider-group">
+                            <label for="size-slider">Circle Size</label>
+                            <input type="range" id="size-slider" min=".1" max="50" value="8">
+                        </div>
+                        <div class="checkbox-group">
+                            <label for="trails-checkbox">
+                                <input type="checkbox" id="trails-checkbox">
+                                Enable Particle Trails
+                            </label>
+                        </div>
+                        <div class="slider-group trails-control">
+                            <label for="trail-quantity-slider">Trail Quantity</label>
+                            <input type="range" id="trail-quantity-slider" min="0" max="100" value="100">
+                        </div>
+                        <div class="slider-group trails-control">
+                            <label for="trail-length-slider">Trail Length</label>
+                            <input type="range" id="trail-length-slider" min="1" max="30" value="12">
+                        </div>
+                        <div class="slider-group trails-control">
+                            <label for="trail-elasticity-slider">Trail Elasticity</label>
+                            <input type="range" id="trail-elasticity-slider" min="0" max="100" value="50">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="controls-section">
+                    <div class="section-header">
+                        <h3>Physics Controls</h3>
+                        <span class="toggle-icon">▼</span>
+                    </div>
+                    <div class="section-content">
+                        <div class="slider-group">
+                            <label for="gravity-slider">Gravity</label>
+                            <input type="range" id="gravity-slider" min="-1" max="1" step="0.05" value="0">
+                        </div>
+                        <div class="slider-group">
+                            <label for="bounce-slider">Bounce</label>
+                            <input type="range" id="bounce-slider" min="0" max="1" step="0.05" value="0.5">
+                        </div>
+                        <div class="slider-group">
+                            <label for="chaos-slider">Chaos Level</label>
+                            <input type="range" id="chaos-slider" min="0" max="20" value="0">
+                        </div>
+                        <div class="button-group">
+                            <button id="explode-btn">Explode!</button>
+                            <button id="reset-btn">Reset Position</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="controls-section">
+                    <div class="section-header">
+                        <h3>Color Controls</h3>
+                        <span class="toggle-icon">▼</span>
+                    </div>
+                    <div class="section-content">
+                        <div class="color-controls">
+                            <div class="color-group">
+                                <label for="text-fill-color">Text Fill Color</label>
+                                <input type="color" id="text-fill-color" value="#FFA7CD">
+                            </div>
+                            <div class="color-group">
+                                <label for="text-outline-color">Text Outline Color</label>
+                                <input type="color" id="text-outline-color" value="#FFFFFF">
+                                <div class="slider-group">
+                                    <label for="text-outline-width">Outline Width</label>
+                                    <input type="range" id="text-outline-width" min="0" max="5" step="0.5" value="2">
+                                </div>
+                            </div>
+                            <div class="color-group">
+                                <label for="trail-color">Trail Color</label>
+                                <input type="color" id="trail-color" value="#FF0000">
+                                <div class="slider-group">
+                                    <label for="trail-opacity">Trail Opacity</label>
+                                    <input type="range" id="trail-opacity" min="10" max="100" value="50">
+                                </div>
+                            </div>
+                            <div class="color-group">
+                                <label for="bg-color">Background Color</label>
+                                <input type="color" id="bg-color" value="#FFFFFF">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="main-content">
+            <div class="canvas-container">
+                <canvas id="canvas"></canvas>
+                <button id="screenshot-btn" class="floating-btn" title="Take Screenshot">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                        <circle cx="12" cy="13" r="4"></circle>
+                    </svg>
+                </button>
+            </div>
+            <div class="screenshots-sidebar hidden">
+                <div class="screenshots-header">
+                    <h3>Screenshots</h3>
+                    <button id="close-screenshots-btn" class="close-btn">×</button>
+                </div>
+                <div class="screenshots-container">
+                    <!-- Screenshots will be added here dynamically -->
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html> 
