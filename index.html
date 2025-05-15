@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Interactive Circle Packing</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:wght@400;700&family=DM+Sans:opsz,wght@9..40,400;9..40,700&family=Fira+Sans:wght@400;700&family=Inter:wght@400;700&family=Lato:wght@400;700&family=Merriweather:wght@400;700&family=Montserrat:wght@400;700&family=Nunito:wght@400;700&family=Open+Sans:wght@400;700&family=Oswald:wght@400;700&family=PT+Sans:wght@400;700&family=Playfair+Display:wght@400;700&family=Poppins:wght@400;700&family=Raleway:wght@400;700&family=Roboto:wght@400;700&family=Rubik:wght@400;700&family=Source+Sans+Pro:wght@400;700&family=Ubuntu:wght@400;700&family=Work+Sans:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -20,6 +23,45 @@
                     <div class="section-content">
                         <div class="text-input-group">
                             <textarea id="outline-text" placeholder="Type your text here...">Poyo's Particle Party</textarea>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="controls-section">
+                    <div class="section-header">
+                        <h3>Font Controls</h3>
+                        <span class="toggle-icon">▼</span>
+                    </div>
+                    <div class="section-content">
+                        <div class="select-group">
+                            <label for="font-select">Font Family</label>
+                            <select id="font-select" class="font-dropdown">
+                                <option value="Arial" selected style="font-family: Arial">Arial (Default)</option>
+                                <option value="Roboto" style="font-family: 'Roboto', sans-serif">Roboto</option>
+                                <option value="Montserrat" style="font-family: 'Montserrat', sans-serif">Montserrat</option>
+                                <option value="Open Sans" style="font-family: 'Open Sans', sans-serif">Open Sans</option>
+                                <option value="Lato" style="font-family: 'Lato', sans-serif">Lato</option>
+                                <option value="Playfair Display" style="font-family: 'Playfair Display', serif">Playfair Display</option>
+                                <option value="Merriweather" style="font-family: 'Merriweather', serif">Merriweather</option>
+                                <option value="Oswald" style="font-family: 'Oswald', sans-serif">Oswald</option>
+                                <option value="Poppins" style="font-family: 'Poppins', sans-serif">Poppins</option>
+                                <option value="Raleway" style="font-family: 'Raleway', sans-serif">Raleway</option>
+                                <option value="Ubuntu" style="font-family: 'Ubuntu', sans-serif">Ubuntu</option>
+                                <option value="Fira Sans" style="font-family: 'Fira Sans', sans-serif">Fira Sans</option>
+                                <option value="Nunito" style="font-family: 'Nunito', sans-serif">Nunito</option>
+                                <option value="Source Sans Pro" style="font-family: 'Source Sans Pro', sans-serif">Source Sans Pro</option>
+                                <option value="PT Sans" style="font-family: 'PT Sans', sans-serif">PT Sans</option>
+                                <option value="Inter" style="font-family: 'Inter', sans-serif">Inter</option>
+                                <option value="Crimson Text" style="font-family: 'Crimson Text', serif">Crimson Text</option>
+                                <option value="Work Sans" style="font-family: 'Work Sans', sans-serif">Work Sans</option>
+                                <option value="DM Sans" style="font-family: 'DM Sans', sans-serif">DM Sans</option>
+                                <option value="Rubik" style="font-family: 'Rubik', sans-serif">Rubik</option>
+                            </select>
+                        </div>
+                        <div class="font-upload-group">
+                            <label for="font-upload">Or Upload Your Own Font</label>
+                            <input type="file" id="font-upload" accept=".ttf,.otf,.woff,.woff2" class="font-file-input">
+                            <div class="custom-font-info">No font uploaded</div>
                         </div>
                     </div>
                 </div>

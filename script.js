@@ -19,6 +19,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const controlsContainer = document.querySelector('.controls-sidebar');
     const trailsCheckbox = document.getElementById('trails-checkbox');
     const trailLengthSlider = document.getElementById('trail-length-slider');
+    const trailElasticitySlider = document.getElementById('trail-elasticity-slider');
+    const trailQuantitySlider = document.getElementById('trail-quantity-slider');
+    const fontSelect = document.getElementById('font-select');
+    const fontUpload = document.getElementById('font-upload');
+    const customFontInfo = document.querySelector('.custom-font-info');
+    
+    console.log('Trail elasticity slider element:', trailElasticitySlider); // Debug log
+    
     const trailsControl = document.querySelector('.trails-control');
     const screenshotBtn = document.getElementById('screenshot-btn');
     const screenshotsSidebar = document.querySelector('.screenshots-sidebar');
@@ -47,9 +55,18 @@ document.addEventListener('DOMContentLoaded', () => {
     let physicsEnabled = false;
     let forceFactor = 10;         // Force multiplier for mouse/touch interaction
     let enableTrails = false;     // Default: trails off
-    let trailLength = 5;          // Default trail length
+    let trailLength = 12;         // Default trail length
+    let trailElasticity = 0.5;    // Default trail elasticity (0-1)
     let screenshots = [];         // Array to store screenshots
     let isTextAreaFocused = false;
+    let trailQuantity = 100; // Default, will be set to number of circles
+    
+    // Font management variables
+    let selectedFont = 'Arial'; // Default font
+    let customFont = null;
+    let customFontName = '';
+    let customFontLoaded = false;
+    let fontFaceObject = null;
     
     // Create batch download button
     const batchDownloadBtn = document.createElement('button');
@@ -586,37 +603,57 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Start with initial font size
         let calculatedFontSize = Math.min(minDimension * 0.3, fontSize);
-        tempCtx.font = `bold ${calculatedFontSize}px ${fontFamily}`;
         
-        // Measure text and adjust font size if needed
-        let metrics = tempCtx.measureText(text);
-        let textWidth = metrics.width;
+        // Use the selected font or default to Arial
+        const effectiveFontFamily = customFontLoaded ? customFontName : selectedFont;
+        tempCtx.font = `bold ${calculatedFontSize}px ${effectiveFontFamily}`;
+        
+        // Split text by line breaks
+        const lines = text.split('\n');
+        
+        // Calculate total height needed for all lines
+        const lineHeight = calculatedFontSize * 1.2; // Add some spacing between lines
+        const totalTextHeight = lineHeight * lines.length;
+        
+        // Measure the widest line
+        let maxLineWidth = 0;
+        for (const line of lines) {
+            const metrics = tempCtx.measureText(line);
+            maxLineWidth = Math.max(maxLineWidth, metrics.width);
+        }
         
         // Adjust font size to fit width while maintaining aspect ratio
-        if (textWidth > maxTextWidth) {
-            calculatedFontSize *= maxTextWidth / textWidth;
-            tempCtx.font = `bold ${calculatedFontSize}px ${fontFamily}`;
-            metrics = tempCtx.measureText(text);
-            textWidth = metrics.width;
+        if (maxLineWidth > maxTextWidth) {
+            calculatedFontSize *= maxTextWidth / maxLineWidth;
+            tempCtx.font = `bold ${calculatedFontSize}px ${effectiveFontFamily}`;
+            
+            // Recalculate line height with new font size
+            const lineHeight = calculatedFontSize * 1.2;
+            const totalTextHeight = lineHeight * lines.length;
         }
         
         // Set text properties
-        tempCtx.font = `bold ${calculatedFontSize}px ${fontFamily}`;
+        tempCtx.font = `bold ${calculatedFontSize}px ${effectiveFontFamily}`;
         tempCtx.textAlign = 'center';
         tempCtx.textBaseline = 'middle';
         
         // Center position
         const centerX = width / 2;
-        const centerY = height / 2;
+        let startY = height / 2 - (totalTextHeight / 2) + (calculatedFontSize / 2);
         
-        // Draw the text
-        tempCtx.fillStyle = textFillColor;
-        if (textOutlineWidth > 0) {
-            tempCtx.strokeStyle = textOutlineColor;
-            tempCtx.lineWidth = textOutlineWidth;
-            tempCtx.strokeText(text, centerX, centerY);
-        }
-        tempCtx.fillText(text, centerX, centerY);
+        // Draw each line of text
+        lines.forEach((line, index) => {
+            const lineY = startY + (index * calculatedFontSize * 1.2);
+            
+            // Draw the text
+            tempCtx.fillStyle = textFillColor;
+            if (textOutlineWidth > 0) {
+                tempCtx.strokeStyle = textOutlineColor;
+                tempCtx.lineWidth = textOutlineWidth;
+                tempCtx.strokeText(line, centerX, lineY);
+            }
+            tempCtx.fillText(line, centerX, lineY);
+        });
         
         // Get image data to find filled text points
         const imageData = tempCtx.getImageData(0, 0, width, height);
@@ -669,6 +706,10 @@ document.addEventListener('DOMContentLoaded', () => {
             this.mass = this.radius * this.radius;
             this.friction = 0.98;
             this.trail = [];
+            this.trailSagging = false; // Track if trail is in sagging state
+            this.trailVelocities = []; // Store velocities for each trail point
+            this.lockedEndPoint = null; // Store locked position of the trail end
+            this._enableTrail = false; // Added for trail control
         }
         
         applyForce(forceX, forceY) {
@@ -706,17 +747,207 @@ document.addEventListener('DOMContentLoaded', () => {
         
         update() {
             // Track position for trail if enabled
-            if (enableTrails && (physicsEnabled || mousePressed)) {
-                // Only store position when moving fast enough
-                if (Math.abs(this.vx) > 0.1 || Math.abs(this.vy) > 0.1) {
-                    this.trail.push({ x: this.x, y: this.y });
-                    // Limit trail length
-                    if (this.trail.length > trailLength) {
-                        this.trail.shift();
+            if (this._enableTrail && (physicsEnabled || mousePressed)) {
+                // Add the current position to the trail
+                const currentPoint = { x: this.x, y: this.y };
+                
+                // If there's already a trail, add intermediate points between the last position and current
+                if (this.trail.length > 0) {
+                    const lastPoint = this.trail[this.trail.length - 1];
+                    const dx = currentPoint.x - lastPoint.x;
+                    const dy = currentPoint.y - lastPoint.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    // If distance is large enough, add intermediate points
+                    const minDistance = this.radius * 0.5; // Minimum distance threshold
+                    if (distance > minDistance) {
+                        // Calculate how many points to add based on distance
+                        const pointsToAdd = Math.min(3, Math.floor(distance / minDistance));
+                        
+                        if (pointsToAdd > 0) {
+                            // Add interpolated points
+                            for (let i = 1; i <= pointsToAdd; i++) {
+                                const t = i / (pointsToAdd + 1);
+                                const interpX = lastPoint.x + dx * t;
+                                const interpY = lastPoint.y + dy * t;
+                                this.trail.push({ x: interpX, y: interpY });
+                                this.trailVelocities.push({ vx: 0, vy: 0 });
+                            }
+                        }
                     }
                 }
-            } else if (!enableTrails && this.trail.length > 0) {
+                
+                // Add the current position
+                this.trail.push(currentPoint);
+                this.trailVelocities.push({ vx: 0, vy: 0 });
+                
+                // Limit trail length
+                while (this.trail.length > trailLength) {
+                    this.trail.shift();
+                    this.trailVelocities.shift();
+                }
+                
+                // Reset sagging state when mouse is pressed
+                if (mousePressed) {
+                    this.trailSagging = false;
+                }
+            } else if (!this._enableTrail && this.trail.length > 0) {
                 this.trail = [];
+                this.trailVelocities = [];
+            }
+            
+            // Set trail to sagging state when mouse is released and trails exist
+            if (this._enableTrail && !mousePressed && this.trail.length > 0 && !this.trailSagging) {
+                this.trailSagging = true;
+            }
+            
+            // Apply gravity to trail points when in sagging state
+            if (this.trailSagging && this.trail.length > 1) {
+                // First pass: Apply gravity and handle collisions
+                for (let i = 0; i < this.trail.length; i++) {
+                    // Handle special cases for endpoints
+                    if (i === this.trail.length - 1) {
+                        // Always update the last point (newest) to match the particle position
+                        this.trail[i].x = this.x;
+                        this.trail[i].y = this.y;
+                        continue;
+                    } else if (i === 0 && this.lockedEndPoint) {
+                        // Lock the first point (oldest) in place if we have a locked position
+                        this.trail[i].x = this.lockedEndPoint.x;
+                        this.trail[i].y = this.lockedEndPoint.y;
+                        // Clear velocities to prevent movement
+                        this.trailVelocities[i].vx = 0;
+                        this.trailVelocities[i].vy = 0;
+                        continue;
+                    }
+                    
+                    // Calculate distance from ends of the trail
+                    const normalizedPos = i / (this.trail.length - 1); // 0 to 1
+                    
+                    // Create parabolic sagging effect (maximum in middle, zero at ends)
+                    // Use a modified curve that allows more sag in the front portion too
+                    let sagFactor;
+                    
+                    if (normalizedPos < 0.2) {
+                        // Front part of trail (closest to particle): gradual increase
+                        sagFactor = normalizedPos * 5; // 0 to 1 in the first 20%
+                    } else if (normalizedPos > 0.8) {
+                        // End part of trail (furthest from particle): gradual decrease
+                        sagFactor = (1 - normalizedPos) * 5; // 1 to 0 in the last 20%
+                    } else {
+                        // Middle part: full effect
+                        sagFactor = 1.0;
+                    }
+                    
+                    // Apply elasticity factor to control overall sag amount
+                    // Make elasticity effect much stronger
+                    const amplifiedElasticity = trailElasticity * 10;
+                    const effectiveGravity = gravity * sagFactor * amplifiedElasticity * 0.2;
+                    
+                    // Debugging - log values occasionally
+                    if (Math.random() < 0.0001) {
+                        console.log('Trail sagging debug:', {
+                            gravity,
+                            trailElasticity,
+                            amplifiedElasticity,
+                            sagFactor,
+                            effectiveGravity,
+                            normalizedPos
+                        });
+                    }
+                    
+                    // Apply gravity based on current gravity setting
+                    this.trailVelocities[i].vy += effectiveGravity;
+                    
+                    // Apply some friction
+                    this.trailVelocities[i].vx *= 0.98;
+                    this.trailVelocities[i].vy *= 0.98;
+                    
+                    // Update trail point position
+                    this.trail[i].x += this.trailVelocities[i].vx;
+                    this.trail[i].y += this.trailVelocities[i].vy;
+                    
+                    // Apply collision with viewport boundaries
+                    const trailPointRadius = this.radius * 0.4; // Approximate radius for trail points
+                    const dragZoneSize = trailPointRadius * 5; // Size of the drag zone near borders
+                    const dragFactor = 0.85; // Strength of drag effect
+                    
+                    // Check horizontal boundaries
+                    if (this.trail[i].x < trailPointRadius) {
+                        // Hard collision with left edge
+                        this.trail[i].x = trailPointRadius;
+                        this.trailVelocities[i].vx *= -bounce * 0.8; // Slightly reduced bounce
+                    } else if (this.trail[i].x > width - trailPointRadius) {
+                        // Hard collision with right edge
+                        this.trail[i].x = width - trailPointRadius;
+                        this.trailVelocities[i].vx *= -bounce * 0.8;
+                    } else if (this.trail[i].x < dragZoneSize) {
+                        // Viscous drag near left edge
+                        const dragStrength = 1 - (this.trail[i].x / dragZoneSize);
+                        this.trailVelocities[i].vx *= 1 - (dragStrength * dragFactor);
+                    } else if (this.trail[i].x > width - dragZoneSize) {
+                        // Viscous drag near right edge
+                        const dragStrength = 1 - ((width - this.trail[i].x) / dragZoneSize);
+                        this.trailVelocities[i].vx *= 1 - (dragStrength * dragFactor);
+                    }
+                    
+                    // Check vertical boundaries
+                    if (this.trail[i].y < trailPointRadius) {
+                        // Hard collision with top edge
+                        this.trail[i].y = trailPointRadius;
+                        this.trailVelocities[i].vy *= -bounce * 0.8;
+                    } else if (this.trail[i].y > height - trailPointRadius) {
+                        // Hard collision with bottom edge
+                        this.trail[i].y = height - trailPointRadius;
+                        this.trailVelocities[i].vy *= -bounce * 0.8;
+                    } else if (this.trail[i].y < dragZoneSize) {
+                        // Viscous drag near top edge
+                        const dragStrength = 1 - (this.trail[i].y / dragZoneSize);
+                        this.trailVelocities[i].vy *= 1 - (dragStrength * dragFactor);
+                    } else if (this.trail[i].y > height - dragZoneSize) {
+                        // Viscous drag near bottom edge
+                        const dragStrength = 1 - ((height - this.trail[i].y) / dragZoneSize);
+                        this.trailVelocities[i].vy *= 1 - (dragStrength * dragFactor);
+                    }
+                }
+                
+                // Second pass: Apply distance constraints to simulate string-like behavior
+                // Do multiple iterations for better stability
+                const iterations = 3;
+                const maxStretch = this.radius * 1.5; // Maximum distance between points
+                
+                for (let iter = 0; iter < iterations; iter++) {
+                    // Start from second-to-last point and work backwards
+                    // (last point is fixed to particle position)
+                    for (let i = this.trail.length - 2; i >= 0; i--) {
+                        const point = this.trail[i];
+                        const nextPoint = this.trail[i + 1];
+                        
+                        // Calculate distance between points
+                        const dx = nextPoint.x - point.x;
+                        const dy = nextPoint.y - point.y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+                        
+                        // If distance exceeds maximum, move points closer
+                        if (distance > maxStretch) {
+                            const correction = (distance - maxStretch) / distance;
+                            
+                            // Calculate displacement
+                            const moveX = dx * correction * 0.5;
+                            const moveY = dy * correction * 0.5;
+                            
+                            // Move current point half the distance
+                            point.x += moveX;
+                            point.y += moveY;
+                            
+                            // Move next point the other half, unless it's the particle point
+                            if (i < this.trail.length - 2) {
+                                nextPoint.x -= moveX;
+                                nextPoint.y -= moveY;
+                            }
+                        }
+                    }
+                }
             }
             
             // Mouse interaction
@@ -789,16 +1020,40 @@ document.addEventListener('DOMContentLoaded', () => {
         
         draw(ctx) {
             // Draw trail if enabled
-            if (enableTrails && this.trail.length > 1) {
+            if (this._enableTrail && this.trail.length > 1) {
                 ctx.beginPath();
+                
+                // Start at the first trail point
                 ctx.moveTo(this.trail[0].x, this.trail[0].y);
                 
-                for (let i = 1; i < this.trail.length; i++) {
-                    ctx.lineTo(this.trail[i].x, this.trail[i].y);
+                // Draw the trail with smooth curve for better visual effect
+                if (this.trail.length >= 3) {
+                    // Use a cardinal spline for smoother curves with more points
+                    for (let i = 1; i < this.trail.length - 1; i++) {
+                        // Calculate control points for smoother curves
+                        const p0 = i > 0 ? this.trail[i - 1] : this.trail[0];
+                        const p1 = this.trail[i];
+                        const p2 = this.trail[i + 1];
+                        const p3 = i < this.trail.length - 2 ? this.trail[i + 2] : p2;
+                        
+                        // Tension controls how tight the curve is (0 to 1)
+                        const tension = 0.3;
+                        
+                        // Calculate control points for the curve
+                        const cp1x = p1.x + (p2.x - p0.x) * tension;
+                        const cp1y = p1.y + (p2.y - p0.y) * tension;
+                        const cp2x = p2.x - (p3.x - p1.x) * tension;
+                        const cp2y = p2.y - (p3.y - p1.y) * tension;
+                        
+                        // Draw a bezier curve segment
+                        ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
+                    }
+                } else {
+                    // If only 2 points, just draw a line
+                    for (let i = 1; i < this.trail.length; i++) {
+                        ctx.lineTo(this.trail[i].x, this.trail[i].y);
+                    }
                 }
-                
-                // Draw line to current position
-                ctx.lineTo(this.x, this.y);
                 
                 // Set trail style
                 ctx.strokeStyle = trailColor;
@@ -898,6 +1153,13 @@ document.addEventListener('DOMContentLoaded', () => {
         // Use circle packing to avoid overlaps
         circles = packCircles(textPoints);
         
+        // Set trail quantity slider max and value
+        if (trailQuantitySlider) {
+            trailQuantitySlider.max = circles.length;
+            if (trailQuantity > circles.length) trailQuantity = circles.length;
+            trailQuantitySlider.value = trailQuantity;
+        }
+        
         // Reset physics state when circles are regenerated
         physicsEnabled = false;
     }
@@ -906,6 +1168,12 @@ document.addEventListener('DOMContentLoaded', () => {
     function explodeCircles() {
         circles.forEach(circle => {
             circle.explode();
+            // Reset trail sagging on explode
+            circle.trailSagging = false;
+            // Clear locked end point
+            circle.lockedEndPoint = null;
+            // Clear existing trail velocities
+            circle.trailVelocities = new Array(circle.trail.length).fill().map(() => ({ vx: 0, vy: 0 }));
         });
     }
     
@@ -913,6 +1181,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function resetCircles() {
         circles.forEach(circle => {
             circle.resetPosition();
+            // Reset trails and trail sagging on position reset
+            circle.trail = [];
+            circle.trailVelocities = [];
+            circle.trailSagging = false;
+            circle.lockedEndPoint = null;
         });
         
         // Turn off physics after reset
@@ -925,7 +1198,9 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.clearRect(0, 0, width, height);
         
         // Update and draw circles
-        circles.forEach(circle => {
+        circles.forEach((circle, i) => {
+            // Only enable trails for first trailQuantity circles
+            circle._enableTrail = enableTrails && i < trailQuantity;
             circle.update();
             circle.draw(ctx);
         });
@@ -949,12 +1224,35 @@ document.addEventListener('DOMContentLoaded', () => {
     function handlePointerStart(e) {
         touchActive = true;
         mousePressed = true;
+        
+        // When starting interaction, reset trail sagging for all particles
+        circles.forEach(circle => {
+            circle.trailSagging = false;
+            circle.lockedEndPoint = null; // Clear the locked end point when interaction starts
+        });
+        
         handlePointerMove(e);
     }
     
     function handlePointerEnd() {
         touchActive = false;
         mousePressed = false;
+        
+        // When ending interaction, enable trail sagging for all particles with trails
+        circles.forEach(circle => {
+            if (circle.trail.length > 0) {
+                circle.trailSagging = true;
+                
+                // Store the position of the oldest point (first in the array) to keep it locked
+                if (circle.trail[0]) {
+                    circle.lockedEndPoint = { 
+                        x: circle.trail[0].x, 
+                        y: circle.trail[0].y 
+                    };
+                }
+            }
+        });
+        
         // Return to text formation gradually
         physicsEnabled = false;
     }
@@ -1045,17 +1343,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (e.code === 'Space') {
             mousePressed = true;
+            // Reset trail sagging when space is pressed
+            circles.forEach(circle => {
+                circle.trailSagging = false;
+                circle.lockedEndPoint = null; // Clear the locked end point
+            });
         }
         
         // Take screenshot with 's' key
         if (e.code === 'KeyS') {
             takeScreenshot();
         }
+        
+        // Trigger explode effect with 'e' key
+        if (e.code === 'KeyE') {
+            explodeCircles();
+        }
     });
     
     document.addEventListener('keyup', (e) => {
         if (e.code === 'Space') {
             mousePressed = false;
+            
+            // Enable trail sagging when space is released
+            circles.forEach(circle => {
+                if (circle.trail.length > 0) {
+                    circle.trailSagging = true;
+                    
+                    // Store the position of the oldest point to keep it locked
+                    if (circle.trail[0]) {
+                        circle.lockedEndPoint = { 
+                            x: circle.trail[0].x, 
+                            y: circle.trail[0].y 
+                        };
+                    }
+                }
+            });
         }
     });
     
@@ -1120,15 +1443,41 @@ document.addEventListener('DOMContentLoaded', () => {
     trailsCheckbox.addEventListener('change', () => {
         enableTrails = trailsCheckbox.checked;
         if (enableTrails) {
-            trailsControl.classList.add('active');
+            // Activate all trail control UI elements
+            document.querySelectorAll('.trails-control').forEach(control => {
+                control.classList.add('active');
+            });
+            
+            // Initialize trail elasticity when trails are enabled
+            if (trailElasticitySlider) {
+                trailElasticity = parseInt(trailElasticitySlider.value) / 100;
+                console.log('Trail elasticity initialized on enable:', trailElasticity);
+            }
         } else {
-            trailsControl.classList.remove('active');
+            // Deactivate all trail control UI elements
+            document.querySelectorAll('.trails-control').forEach(control => {
+                control.classList.remove('active');
+            });
         }
     });
     
     trailLengthSlider.addEventListener('input', () => {
         trailLength = parseInt(trailLengthSlider.value);
     });
+    
+    // Set initial values explicitly
+    if (trailElasticitySlider) {
+        trailElasticity = parseInt(trailElasticitySlider.value) / 100;
+        console.log('Initial trail elasticity:', trailElasticity);
+        
+        // Add event listener
+        trailElasticitySlider.addEventListener('input', () => {
+            trailElasticity = parseInt(trailElasticitySlider.value) / 100;
+            console.log('Trail elasticity updated to:', trailElasticity);
+        });
+    } else {
+        console.error('Trail elasticity slider not found in DOM');
+    }
     
     // Event listeners for screenshot functionality
     screenshotBtn.addEventListener('click', takeScreenshot);
@@ -1378,6 +1727,64 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             console.error('Error loading JSZip:', error);
             alert('Failed to load required dependencies. Please try again.');
+        }
+    });
+
+    if (trailQuantitySlider) {
+        trailQuantitySlider.addEventListener('input', () => {
+            trailQuantity = parseInt(trailQuantitySlider.value);
+        });
+    }
+    
+    // Font control event listeners
+    fontSelect.addEventListener('change', () => {
+        selectedFont = fontSelect.value;
+        
+        // If custom font was loaded before, reset it
+        if (customFontLoaded) {
+            customFontLoaded = false;
+            customFont = null;
+            customFontName = '';
+            customFontInfo.textContent = 'No font uploaded';
+        }
+        
+        // Update text with new font
+        generateCircles();
+    });
+    
+    // Font file upload handler
+    fontUpload.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        try {
+            // Create object URL for the font file
+            const fontURL = URL.createObjectURL(file);
+            
+            // Get font name from filename (remove extension)
+            customFontName = file.name.replace(/\.[^/.]+$/, "");
+            
+            // Create a new FontFace object
+            fontFaceObject = new FontFace(customFontName, `url(${fontURL})`);
+            
+            // Load the font and add it to the document fonts
+            customFont = await fontFaceObject.load();
+            document.fonts.add(customFont);
+            
+            // Mark custom font as loaded and update UI
+            customFontLoaded = true;
+            customFontInfo.textContent = `Using custom font: ${customFontName}`;
+            
+            // Generate circles with the new font
+            generateCircles();
+        } catch (error) {
+            console.error('Error loading custom font:', error);
+            customFontInfo.textContent = 'Error loading font: ' + error.message;
+            
+            // Reset custom font state
+            customFontLoaded = false;
+            customFont = null;
+            customFontName = '';
         }
     });
 }); 
